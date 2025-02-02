@@ -4,7 +4,6 @@ import com.market.server.MarketServer;
 
 public class Main {
     public static void main(String[] args) throws Exception {
-        String host = "localhost";
         System.out.println("                      _        _   \n" +
                 " _ __ ___   __ _ _ __| | _____| |_ \n" +
                 "| '_ ` _ \\ / _` | '__| |/ / _ \\ __|\n" +

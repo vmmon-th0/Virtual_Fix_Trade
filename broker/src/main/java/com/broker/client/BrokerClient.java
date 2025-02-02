@@ -103,6 +103,7 @@ public class BrokerClient {
         public void run() {
             Scanner scanner = new Scanner(System.in);
             try {
+//                Todo: Connect to market
                 while (sc.isConnected()) {
                     String line = scanner.nextLine();
                     if (line.equalsIgnoreCase("quit") || line.equalsIgnoreCase("exit")) {
@@ -110,6 +111,12 @@ public class BrokerClient {
                         sc.close();
                         // Todo: Exit the process properly
                         break;
+                    } else if (line.equalsIgnoreCase("buy")) {
+
+                    } else if (line.equalsIgnoreCase("sell")) {
+
+                    } else if (line.equalsIgnoreCase("list-markets")) {
+
                     }
                     ByteBuffer buffer = ByteBuffer.wrap(line.getBytes());
                     while(buffer.hasRemaining()){

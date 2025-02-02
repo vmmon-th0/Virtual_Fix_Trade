@@ -7,6 +7,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -21,7 +22,6 @@ public class RouterServer {
     public RouterServer(int marketPort, int brokerPort) {
         this.marketPort = marketPort;
         this.brokerPort = brokerPort;
-
     }
 
     private void readMessage(SelectionKey key) throws IOException {
@@ -41,13 +41,12 @@ public class RouterServer {
         byte[] data = new byte[bytesRead];
         buffer.get(data);
 
-        String message = new String(data);
+        String message = new String(data, StandardCharsets.UTF_8);
         System.out.println("\nReceived from : " + sc.getRemoteAddress() + " : " + message);
 
+        key.interestOps(SelectionKey.OP_WRITE);
+        key.attach("Echo: " + message);
         buffer.clear();
-        buffer.put(("Echo: " + message).getBytes());
-        buffer.flip();
-        sc.write(buffer);
     }
 
     private void acceptChannel(SelectionKey key) throws IOException {
@@ -103,8 +102,14 @@ public class RouterServer {
 
                     if (key.isAcceptable()) {
                         acceptChannel(key);
-                    } else if (key.isReadable()) {
+                    }
+
+                    if (key.isReadable()) {
                         readMessage(key);
+                    }
+
+                    if (key.isWritable()) {
+
                     }
                 }
             }
