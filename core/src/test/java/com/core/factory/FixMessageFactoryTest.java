@@ -1,12 +1,14 @@
-package com.broker.factory;
+package com.core.factory;
 
+import com.core.fix.factory.FixMessageFactory;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.broker.factory.FixMessageFactory.FixMessage.computeChecksum;
-import static org.junit.jupiter.api.Assertions.*;
+import static com.core.fix.factory.FixMessageFactory.FixMessage.SOH;
+import static com.core.fix.factory.FixMessageFactory.FixMessage.computeChecksum;
 
 class FixMessageFactoryTest {
 
@@ -21,25 +23,25 @@ class FixMessageFactoryTest {
         FixMessageFactory.FixMessage fixMsg = FixMessageFactory.createFixStdHeader(senderCompID, targetCompID, "D");
         String builtMessage = fixMsg.build();
 
-        assertTrue(builtMessage.contains("8=FIX.4.4"),
+        Assertions.assertTrue(builtMessage.contains("8=FIX.4.4"),
                 "The BeginString (8=FIX.4.4) should be present in the message.");
-        assertTrue(builtMessage.contains("9="),
+        Assertions.assertTrue(builtMessage.contains("9="),
                 "The BodyLength (9=) field should be present in the message.");
-        assertTrue(builtMessage.contains("35=D"),
+        Assertions.assertTrue(builtMessage.contains("35=D"),
                 "The MsgType (35=D) should be present in the message.");
-        assertTrue(builtMessage.contains("49=" + senderCompID),
+        Assertions.assertTrue(builtMessage.contains("49=" + senderCompID),
                 "The SenderCompID (49=SENDER) should be present in the message.");
-        assertTrue(builtMessage.contains("56=" + targetCompID),
+        Assertions.assertTrue(builtMessage.contains("56=" + targetCompID),
                 "The TargetCompID (56=TARGET) should be present in the message.");
-        assertTrue(builtMessage.contains("34=1"),
+        Assertions.assertTrue(builtMessage.contains("34=1"),
                 "The MsgSeqNum (34=1) should be present in the message.");
-        assertTrue(builtMessage.contains("52="),
+        Assertions.assertTrue(builtMessage.contains("52="),
                 "The SendingTime (52=...) should be present in the message.");
-        assertTrue(builtMessage.matches(".*10=\\d{3}\\|.*"),
+        Assertions.assertTrue(builtMessage.matches(".*10=\\d{3}" + SOH + ".*"),
                 "The CheckSum (10=XXX) should exist in the final message with 3 digits.");
 
         String bodyLengthValue = extractFieldValue(builtMessage, "9");
-        assertNotNull(bodyLengthValue, "Field 9 (BodyLength) should exist and have a value.");
+        Assertions.assertNotNull(bodyLengthValue, "Field 9 (BodyLength) should exist and have a value.");
 
         LOGGER.info("std header fix msg: " + builtMessage);
     }
@@ -58,19 +60,19 @@ class FixMessageFactoryTest {
         String newOrder = FixMessageFactory.createNewOrder(
                 senderCompID, targetCompID, clOrdID, symbol, orderQty, side, price);
 
-        assertTrue(newOrder.contains("35=D"),
+        Assertions.assertTrue(newOrder.contains("35=D"),
                 "The MsgType should be D (New Order Single).");
-        assertTrue(newOrder.contains("11=" + clOrdID),
+        Assertions.assertTrue(newOrder.contains("11=" + clOrdID),
                 "The ClOrdID should be present.");
-        assertTrue(newOrder.contains("55=" + symbol),
+        Assertions.assertTrue(newOrder.contains("55=" + symbol),
                 "The Symbol (55=AAPL) should be present.");
-        assertTrue(newOrder.contains("54=" + side),
+        Assertions.assertTrue(newOrder.contains("54=" + side),
                 "The Side (54=1) should be present.");
-        assertTrue(newOrder.contains("38=" + orderQty),
+        Assertions.assertTrue(newOrder.contains("38=" + orderQty),
                 "The OrderQty (38=100.0) should be present.");
-        assertTrue(newOrder.contains("44=" + price),
+        Assertions.assertTrue(newOrder.contains("44=" + price),
                 "The Price (44=1.2345) should be present.");
-        assertTrue(newOrder.matches(".*10=\\d{3}\\|"),
+        Assertions.assertTrue(newOrder.matches(".*10=\\d{3}" + SOH),
                 "The CheckSum (10=XXX) should exist at the end of the message with 3 digits.");
 
         LOGGER.info("new order fix msg: " + newOrder);
@@ -84,13 +86,13 @@ class FixMessageFactoryTest {
 
         String logonMessage = FixMessageFactory.createLogon(senderCompID, targetCompID);
 
-        assertTrue(logonMessage.contains("35=A") && logonMessage.contains("98=0"),
+        Assertions.assertTrue(logonMessage.contains("35=A") && logonMessage.contains("98=0"),
                 "The message should have a relevant MsgType or the EncryptMethod (98=0) for a Logon.");
-        assertTrue(logonMessage.contains("98=0"),
+        Assertions.assertTrue(logonMessage.contains("98=0"),
                 "The EncryptMethod (98=0) should be present for a Logon.");
-        assertTrue(logonMessage.contains("108=30"),
+        Assertions.assertTrue(logonMessage.contains("108=30"),
                 "The HeartBtInt (108=30) should be present for a Logon.");
-        assertTrue(logonMessage.matches(".*10=\\d{3}\\|"),
+        Assertions.assertTrue(logonMessage.matches(".*10=\\d{3}" + SOH),
                 "The CheckSum (10=XXX) should be present at the end of the message with 3 digits.");
 
         LOGGER.info("logon fix msg: " + logonMessage);
@@ -102,14 +104,14 @@ class FixMessageFactoryTest {
         String senderCompID = "SENDER";
         String targetCompID = "TARGET";
 
-        String logonMessage = FixMessageFactory.createLogout(senderCompID, targetCompID);
+        String logoutMessage = FixMessageFactory.createLogout(senderCompID, targetCompID);
 
-        assertTrue(logonMessage.contains("35=5"),
+        Assertions.assertTrue(logoutMessage.contains("35=5"),
                 "The message should have a relevant MsgType for a Logout.");
-        assertTrue(logonMessage.matches(".*10=\\d{3}\\|"),
+        Assertions.assertTrue(logoutMessage.matches(".*10=\\d{3}" + SOH),
                 "The CheckSum (10=XXX) should be present at the end of the message with 3 digits.");
 
-        LOGGER.info("logout fix msg: " + logonMessage);
+        LOGGER.info("logout fix msg: " + logoutMessage);
     }
 
     @Test
@@ -118,23 +120,23 @@ class FixMessageFactoryTest {
         String logonMessage = FixMessageFactory.createLogon("SENDER", "TARGET");
 
         String actualChecksum = extractFieldValue(logonMessage, "10");
-        assertNotNull(actualChecksum, "Checksum field (10=) should be present in the message.");
+        Assertions.assertNotNull(actualChecksum, "Checksum field (10=) should be present in the message.");
 
-        String[] fields = logonMessage.split("\\|");
+        String[] fields = logonMessage.split(SOH);
 
         StringBuilder builderWithoutChecksum = new StringBuilder();
         for (String field : fields) {
             if (!field.startsWith("10=")) {
-                builderWithoutChecksum.append(field).append("|");
+                builderWithoutChecksum.append(field).append(SOH);
             }
         }
         String recomputedChecksum = computeChecksum(builderWithoutChecksum.toString());
-        assertEquals(actualChecksum, recomputedChecksum,
+        Assertions.assertEquals(actualChecksum, recomputedChecksum,
                 "The checksum in the message should match the recomputed checksum.");
     }
 
     private String extractFieldValue(String fixMessage, String tag) {
-        String[] tagValues = fixMessage.split("\\|");
+        String[] tagValues = fixMessage.split(SOH);
         for (String tagValue : tagValues) {
             if (tagValue.startsWith(tag + "=")) {
                 return tagValue.substring(tagValue.indexOf('=') + 1);

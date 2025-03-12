@@ -1,4 +1,4 @@
-package com.broker.factory;
+package com.core.fix.factory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
@@ -9,7 +9,7 @@ public class FixMessageFactory {
 
     public static class FixMessage {
         private final Map<String, String> fields = new LinkedHashMap<>();
-        private static final String SOH = "|"; //"\u0001";
+        public static final String SOH = "\u0001";
 
         public FixMessage addField(String tag, String value) {
             fields.put(tag, value);
@@ -29,12 +29,12 @@ public class FixMessageFactory {
             StringJoiner joiner = new StringJoiner(SOH);
             fields.forEach((tag, value) -> joiner.add(tag + "=" + value));
 
-            String finalbuild = joiner.toString() + SOH;
+            String finalbuild = joiner + SOH;
             String checksum = computeChecksum(finalbuild);
             return finalbuild + "10=" + checksum + SOH;
         }
 
-        static String computeChecksum(String fixMessage) {
+        public static String computeChecksum(String fixMessage) {
             int sum = 0;
             for (int i = 0; i < fixMessage.length(); i++) {
                 sum += fixMessage.charAt(i);
@@ -42,7 +42,6 @@ public class FixMessageFactory {
             int chksum = sum % 256;
             return String.format("%03d", chksum);
         }
-
     }
 
     public static FixMessage createFixStdHeader(String senderCompID, String targetCompID, String msgType) {
@@ -77,10 +76,20 @@ public class FixMessageFactory {
         return fixMessage.build();
     }
 
+    public static String createLogonIdentifier(String identifier) {
+        FixMessage fixMessage = createFixStdHeader("", "", "UD1"); // User Defined type
+        fixMessage
+                .addField("58", identifier); // Text
+        return fixMessage.build();
+    }
+
+    public static String createListMarkets() {
+        FixMessage fixMessage = createFixStdHeader("", "", "UD2");
+        return fixMessage.build();
+    }
+
     public static String createLogout(String senderCompID, String targetCompID) {
         FixMessage fixMessage = createFixStdHeader(senderCompID, targetCompID, "5");
-        fixMessage
-                .addField("58", "58=Logout acknowledgement"); // Text
         return fixMessage.build();
     }
 

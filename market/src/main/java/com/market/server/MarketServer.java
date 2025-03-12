@@ -1,28 +1,56 @@
 package com.market.server;
 
+import com.core.fix.factory.FixMessageFactory;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 
 public class MarketServer {
+
+    private String marketChannelId;
     private SocketChannel socketChannel;
     private final String host;
     private Selector selector;
     private final int port;
 
-    public MarketServer(String host, int port) {
+    public MarketServer(String host, int port, String marketChannelId) {
         this.host = host;
         this.port = port;
+        this.marketChannelId = marketChannelId;
     }
 
     private void initChannel() throws IOException {
-        socketChannel = socketChannel.open();
-        socketChannel.configureBlocking(false);
-        socketChannel.connect(new InetSocketAddress(host, port));
+        try {
+            socketChannel = SocketChannel.open();
+            socketChannel.configureBlocking(true); // while(!socketChannel.finishConnect()) alternative
+            InetSocketAddress address = new InetSocketAddress(host, port);
+            if (!socketChannel.connect(address)) {
+                throw new IOException("Failed to connect within the time limit");
+            }
+
+            String logonMessage = FixMessageFactory.createLogonIdentifier(marketChannelId);
+            ByteBuffer buffer = ByteBuffer.wrap(logonMessage.getBytes(StandardCharsets.UTF_8));
+
+            while (buffer.hasRemaining()) {
+                socketChannel.write(buffer);
+            }
+            socketChannel.configureBlocking(false);
+        } catch (IOException e) {
+            if (socketChannel != null) {
+                try {
+                    socketChannel.close();
+                } catch (IOException ex) {
+                    e.addSuppressed(ex);
+                }
+            }
+            throw e;
+        }
     }
 
     private void readMessage(SelectionKey key) throws IOException {
@@ -71,6 +99,9 @@ public class MarketServer {
             }
 
         } catch (IOException e) {
+            if (selector != null) {
+                selector.close();
+            }
             e.printStackTrace();
         }
     }

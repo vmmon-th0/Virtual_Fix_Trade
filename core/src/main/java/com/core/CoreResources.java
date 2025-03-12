@@ -1,17 +1,13 @@
-package com.vmmon;
+package com.core;
 
 import java.io.IOException;
 import java.net.Socket;
 
-public class Main {
+public class CoreResources {
     public static void main(String[] args) {
-        String host = "localhost";
-        int[] ports = {5000, 5001};
-
-        for (int port : ports) {
-            connectToPort(host, port);
-        }
     }
+
+    // todo: deserialize fix message, check validity (checksum compute)
 
     private static void connectToPort(String host, int port) {
         System.out.println("Attempting to connect to " + host + " on port " + port + "...");

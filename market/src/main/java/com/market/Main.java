@@ -9,7 +9,7 @@ public class Main {
                 "| '_ ` _ \\ / _` | '__| |/ / _ \\ __|\n" +
                 "| | | | | | (_| | |  |   <  __/ |_ \n" +
                 "|_| |_| |_|\\__,_|_|  |_|\\_\\___|\\__|");
-        MarketServer marketServer = new MarketServer("localhost", 5000);
+        MarketServer marketServer = new MarketServer("localhost", 5000, "STOCKMARKET404");
         marketServer.runEventLoop();
     }
 }

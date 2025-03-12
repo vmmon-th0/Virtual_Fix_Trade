@@ -1,5 +1,11 @@
 package com.router.server;
 
+import com.core.fix.config.FixPipelineConfig;
+import com.core.fix.context.DeserializationContext;
+import com.core.fix.processor.FixMessagePreProcessor;
+import com.router.context.ConnectionContext;
+import com.router.strategy.StrategyRegistry;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -9,30 +15,59 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 
 public class RouterServer {
     private final int marketPort;
     private final int brokerPort;
 
-    private ServerSocketChannel marketServerChannel;
-    private ServerSocketChannel brokerServerChannel;
+    private ServerSocketChannel marketSocketChannel;
+    private ServerSocketChannel brokerSocketChannel;
     private Selector selector;
+
+    private FixMessagePreProcessor fixMessagePreProcessor;
 
     public RouterServer(int marketPort, int brokerPort) {
         this.marketPort = marketPort;
         this.brokerPort = brokerPort;
+        this.fixMessagePreProcessor = FixPipelineConfig.buildChain();
+    }
+
+//    todo: optimize in order to search only marketSocketChannel connections
+
+    private void listMarkets() {
+        for (SelectionKey key : selector.keys()) {
+            Object attachment = key.attachment();
+            if (attachment instanceof ConnectionContext) {
+                System.out.println(((ConnectionContext) attachment).getId());
+            }
+        }
+    }
+
+    private void processMessage(String message) {
+        this.fixMessagePreProcessor.handle(message);
+        Map<String, String> fixMessage = DeserializationContext.getCurrentMessage();
+        System.out.println("Parse after fixMessagePreProcessor :)");
+        for (Map.Entry<String, String> entry : fixMessage.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            System.out.println("key: " + key + " value: " + value);
+        }
+//        this.strategyProcessor.processor();
     }
 
     private void readMessage(SelectionKey key) throws IOException {
-        SocketChannel sc = (SocketChannel) key.channel();
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        SocketChannel socketChannel = (SocketChannel) key.channel();
 
-        int bytesRead = sc.read(buffer);
+        ConnectionContext connectionContext = (ConnectionContext) key.attachment();
+        ByteBuffer buffer = connectionContext.getReadBuffer();
+
+        int bytesRead = socketChannel.read(buffer);
         if (bytesRead == -1) {
             System.out.println("Connection closed by the client : "
-                    + sc.getRemoteAddress());
-            sc.close();
+                    + socketChannel.getRemoteAddress());
+            socketChannel.close();
             key.cancel();
             return;
         }
@@ -42,21 +77,24 @@ public class RouterServer {
         buffer.get(data);
 
         String message = new String(data, StandardCharsets.UTF_8);
-        System.out.println("\nReceived from : " + sc.getRemoteAddress() + " : " + message);
+        System.out.println("\nReceived from : " + socketChannel.getRemoteAddress() + " : " + message);
 
-        key.interestOps(SelectionKey.OP_WRITE);
-        key.attach("Echo: " + message);
+//        Todo: Optimize this part, another thread maybe for the execution depending on fixmessage
+//        Todo: Move this part, and implement Optional String return value if required.
+//        Todo: Add execution of the process in the main loop to seperate logic.
         buffer.clear();
+        processMessage(message);
     }
 
     private void acceptChannel(SelectionKey key) throws IOException {
         ServerSocketChannel serverChannel = (ServerSocketChannel) key.channel();
-        SocketChannel sc = serverChannel.accept();
+        SocketChannel socketChannel = serverChannel.accept();
 
-        if (sc != null) {
-            sc.configureBlocking(false);
-            sc.register(selector, SelectionKey.OP_READ);
-            System.out.println("Accepted connection from " + sc.getRemoteAddress());
+        if (socketChannel != null) {
+            socketChannel.configureBlocking(false);
+            SelectionKey clientKey = socketChannel.register(selector, SelectionKey.OP_READ);
+            clientKey.attach(new ConnectionContext());
+            System.out.println("Accepted connection from " + socketChannel.getRemoteAddress());
             switch (serverChannel.socket().getLocalPort()) {
                 case 5000:
                     System.out.println("Market is connected.");
@@ -69,14 +107,14 @@ public class RouterServer {
     }
 
     private void initChannels() throws IOException {
-        marketServerChannel = ServerSocketChannel.open();
-        brokerServerChannel = ServerSocketChannel.open();
+        marketSocketChannel = ServerSocketChannel.open();
+        brokerSocketChannel = ServerSocketChannel.open();
 
-        marketServerChannel.configureBlocking(false);
-        brokerServerChannel.configureBlocking(false);
+        marketSocketChannel.configureBlocking(false);
+        brokerSocketChannel.configureBlocking(false);
 
-        marketServerChannel.bind(new InetSocketAddress(marketPort));
-        brokerServerChannel.bind(new InetSocketAddress(brokerPort));
+        marketSocketChannel.bind(new InetSocketAddress(marketPort));
+        brokerSocketChannel.bind(new InetSocketAddress(brokerPort));
     }
 
     public void runEventLoop() throws IOException {
@@ -85,8 +123,8 @@ public class RouterServer {
             initChannels();
             selector = Selector.open();
 
-            marketServerChannel.register(selector, SelectionKey.OP_ACCEPT);
-            brokerServerChannel.register(selector, SelectionKey.OP_ACCEPT);
+            marketSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+            brokerSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
             System.out.println("Listen on market port: " + marketPort + " & broker port: " + brokerPort);
 
@@ -100,6 +138,10 @@ public class RouterServer {
                     SelectionKey key = keyIterator.next();
                     keyIterator.remove();
 
+                    if (!key.isValid()) {
+                        continue;
+                    }
+
                     if (key.isAcceptable()) {
                         acceptChannel(key);
                     }
@@ -108,9 +150,6 @@ public class RouterServer {
                         readMessage(key);
                     }
 
-                    if (key.isWritable()) {
-
-                    }
                 }
             }
         } catch (IOException e) {
@@ -120,11 +159,11 @@ public class RouterServer {
                 if (selector != null) {
                     selector.close();
                 }
-                if (marketServerChannel != null) {
-                    marketServerChannel.close();
+                if (marketSocketChannel != null) {
+                    marketSocketChannel.close();
                 }
-                if (brokerServerChannel != null) {
-                    brokerServerChannel.close();
+                if (brokerSocketChannel != null) {
+                    brokerSocketChannel.close();
                 }
             } catch (IOException e) {
                 e.printStackTrace();
