@@ -2,6 +2,7 @@ package com.router.processor;
 
 import com.router.interfaces.FixMessageStrategy;
 import com.router.strategy.StrategyRegistry;
+import com.router.strategy.strategies.ListMarketsStrategy;
 import com.router.strategy.strategies.LogonIdentifierStrategy;
 
 import java.util.Map;
@@ -12,6 +13,7 @@ public class FixMessageProcessor {
 
     static {
         registry.registerStrategy("UD1", new LogonIdentifierStrategy());
+        registry.registerStrategy("UD2", new ListMarketsStrategy());
     }
 
     public void process(Map<String, String> message) {

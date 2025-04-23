@@ -57,7 +57,6 @@ public class BrokerClient {
         try {
             initChannel();
             selector = Selector.open();
-
             socketChannel.register(selector, SelectionKey.OP_CONNECT);
 
             while (true) {
