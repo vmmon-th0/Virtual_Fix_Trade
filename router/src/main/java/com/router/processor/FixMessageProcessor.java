@@ -6,6 +6,8 @@ import com.router.server.RouterServer;
 import com.router.strategy.StrategyRegistry;
 import com.router.strategy.strategies.ListMarketsStrategy;
 import com.router.strategy.strategies.LogonIdentifierStrategy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.Objects;
@@ -15,6 +17,8 @@ public class FixMessageProcessor {
     private FixMessageStrategy strategy;
     private RouterServerActions routerServer;
     private static final StrategyRegistry registry = new StrategyRegistry();
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(FixMessageProcessor.class);
 
     static {
         registry.registerStrategy("UD1", new LogonIdentifierStrategy());
@@ -28,7 +32,7 @@ public class FixMessageProcessor {
     public Optional<String> process(Map<String, String> message) {
         String msgType = message.get("35");
 
-        System.out.println("Fix Message process read: " +  msgType);
+        LOGGER.info("Fix Message process read: " +  msgType);
 
         if (Objects.equals(msgType, "UD1") || Objects.equals(msgType, "UD2")) {
             return msgType.describeConstable();
@@ -38,7 +42,7 @@ public class FixMessageProcessor {
         if (strategy != null) {
             strategy.process(routerServer, message);
         } else {
-            System.out.println("No strategy found for MsgType: " + msgType);
+            LOGGER.info("No strategy found for MsgType: " + msgType);
         }
         return Optional.empty();
     }

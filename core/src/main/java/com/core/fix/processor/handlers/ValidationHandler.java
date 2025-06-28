@@ -11,15 +11,15 @@ public class ValidationHandler extends FixMessagePreProcessor {
         String fixMessage = (String) input;
         int checksumStartIndex = fixMessage.lastIndexOf(checksumPrefix);
         if (checksumStartIndex == -1) {
-            System.out.println("Fixed message is missing a checksum");
+            LOGGER.info("Fixed message is missing a checksum");
             return ;
         }
         String checksum = fixMessage.substring(checksumStartIndex + checksumPrefix.length(), fixMessage.length() - 1);
         String messageWithoutChecksum = fixMessage.substring(0, checksumStartIndex);
         String computedChecksum = computeChecksum(messageWithoutChecksum);
 
-        System.out.println(checksum);
-        System.out.println(computedChecksum);
+        LOGGER.info(checksum);
+        LOGGER.info(computedChecksum);
 
         if (!computedChecksum.equals(checksum)) {
             throw new IllegalArgumentException("Invalid checksum");

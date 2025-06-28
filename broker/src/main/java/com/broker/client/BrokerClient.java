@@ -1,6 +1,8 @@
 package com.broker.client;
 
 import com.core.fix.factory.FixMessageFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -19,7 +21,16 @@ public class BrokerClient {
     private final String host;
     private final String brokerChannelId;
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(BrokerClient.class);
+
     public BrokerClient(String host, int port, String brokerChannelId) {
+
+        LOGGER.info(" _               _             \n" +
+                "| |__  _ __ ___ | | _____ _ __ \n" +
+                "| '_ \\| '__/ _ \\| |/ / _ \\ '__|\n" +
+                "| |_) | | | (_) |   <  __/ |   \n" +
+                "|_.__/|_|  \\___/|_|\\_\\___|_|   ");
+
         this.host = host;
         this.port = port;
         this.brokerChannelId = brokerChannelId;
@@ -38,7 +49,7 @@ public class BrokerClient {
         int bytesRead = sc.read(buffer);
 
         if (bytesRead == -1) {
-            System.out.println("Connection closed by the server : "
+            LOGGER.info("Connection closed by the server : "
             + sc.getRemoteAddress());
             sc.close();
             key.cancel();
@@ -50,7 +61,7 @@ public class BrokerClient {
         buffer.get(data);
 
         String message = new String(data);
-        System.out.println("Received from : " + sc.getRemoteAddress() + " : " + message);
+        LOGGER.info("Received from : " + sc.getRemoteAddress() + " : " + message);
         buffer.clear();
     }
 
@@ -80,7 +91,7 @@ public class BrokerClient {
                 }
             }
 
-            System.out.println("Connection closed, see you soon in virtual FIX trading");
+            LOGGER.info("Connection closed, see you soon in virtual FIX trading");
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
@@ -97,7 +108,7 @@ public class BrokerClient {
         SocketChannel sc = (SocketChannel) key.channel();
 
         if (sc.finishConnect()) {
-            System.out.println("Connection established with the router server : "
+            LOGGER.info("Connection established with the router server : "
                     + sc.getRemoteAddress());
 
             String logonMessage = FixMessageFactory.createLogonIdentifier(brokerChannelId);
@@ -105,7 +116,7 @@ public class BrokerClient {
             while (buffer.hasRemaining()) {
                 sc.write(buffer);
             }
-            System.out.println("Sent market identifier successfully");
+            LOGGER.info("Sent market identifier successfully");
 
             key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
             new Thread(new WriterTask(sc, this)).start();
@@ -129,7 +140,7 @@ public class BrokerClient {
                 while (sc.isConnected()) {
                     String line = scanner.nextLine();
                     if (line.equalsIgnoreCase("quit") || line.equalsIgnoreCase("exit")) {
-                        System.out.println("disconnection...");
+                        LOGGER.info("disconnection...");
                         sc.close();
                         this.brokerClient.selector.wakeup();
                         break;
@@ -154,7 +165,7 @@ public class BrokerClient {
 
                     } else if (line.equalsIgnoreCase("list-markets")) {
                     } else {
-                        System.out.println("line: " + line);
+                        LOGGER.info("line: " + line);
                         ByteBuffer buffer = ByteBuffer.wrap(line.getBytes(StandardCharsets.US_ASCII));
                         while(buffer.hasRemaining()){
                             sc.write(buffer);

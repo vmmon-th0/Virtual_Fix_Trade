@@ -9,6 +9,6 @@ public class LoggingHandler extends FixMessagePreProcessor {
         if (!(input instanceof String message)) {
             return ;
         }
-        System.out.println("Logging Handler: " + message);
+        LOGGER.info("Logging Handler: " + message);
     }
 }

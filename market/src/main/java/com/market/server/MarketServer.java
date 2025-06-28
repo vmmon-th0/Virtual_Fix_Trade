@@ -1,6 +1,8 @@
 package com.market.server;
 
 import com.core.fix.factory.FixMessageFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -19,7 +21,16 @@ public class MarketServer {
     private Selector selector;
     private final int port;
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(MarketServer.class);
+
     public MarketServer(String host, int port, String marketChannelId) {
+
+        LOGGER.info("                      _        _   \n" +
+                " _ __ ___   __ _ _ __| | _____| |_ \n" +
+                "| '_ ` _ \\ / _` | '__| |/ / _ \\ __|\n" +
+                "| | | | | | (_| | |  |   <  __/ |_ \n" +
+                "|_| |_| |_|\\__,_|_|  |_|\\_\\___|\\__|");
+
         this.host = host;
         this.port = port;
         this.marketChannelId = marketChannelId;
@@ -38,7 +49,7 @@ public class MarketServer {
         int bytesRead = sc.read(buffer);
 
         if (bytesRead == -1) {
-            System.out.println("Connection closed by the server : "
+            LOGGER.info("Connection closed by the server : "
                     + sc.getRemoteAddress());
             sc.close();
             key.cancel();
@@ -50,7 +61,7 @@ public class MarketServer {
         buffer.get(data);
 
         String message = new String(data);
-        System.out.println("Received from : " + sc.getRemoteAddress() + " : " + message);
+        LOGGER.info("Received from : " + sc.getRemoteAddress() + " : " + message);
         buffer.clear();
     }
 
@@ -96,10 +107,10 @@ public class MarketServer {
     private void connectChannel(SelectionKey key) throws IOException {
         SocketChannel sc = (SocketChannel) key.channel();
 
-        System.out.println("Connecting to " + sc.getRemoteAddress());
+        LOGGER.info("Connecting to " + sc.getRemoteAddress());
 
         if (sc.finishConnect()) {
-            System.out.println("Connection established with the router server : "
+            LOGGER.info("Connection established with the router server : "
                     + sc.getRemoteAddress());
         }
 
@@ -108,7 +119,7 @@ public class MarketServer {
         while (buffer.hasRemaining()) {
             sc.write(buffer);
         }
-        System.out.println("Sent market identifier successfully");
+        LOGGER.info("Sent market identifier successfully");
         key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
     }
 

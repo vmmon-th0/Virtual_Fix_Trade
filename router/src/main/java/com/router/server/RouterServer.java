@@ -7,6 +7,8 @@ import com.core.fix.processor.FixMessagePreProcessor;
 import com.router.context.ConnectionContext;
 import com.router.interfaces.RouterServerActions;
 import com.router.processor.FixMessageProcessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -38,11 +40,19 @@ public class RouterServer implements RouterServerActions {
     Map<String, SocketChannel> markets = new ConcurrentHashMap<>();
     Map<String, SocketChannel> brokers = new ConcurrentHashMap<>();
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(RouterServer.class);
+
     public Map<String, SocketChannel> getMarkets() {
         return markets;
     }
 
     public RouterServer(int marketPort, int brokerPort) {
+        LOGGER.info(" ____   ___  _   _ _____ _____ ____  \n" +
+                "|  _ \\ / _ \\| | | |_   _| ____|  _ \\ \n" +
+                "| |_) | | | | | | | | | |  _| | |_) |\n" +
+                "|  _ <| |_| | |_| | | | | |___|  _ < \n" +
+                "|_| \\_\\\\___/ \\___/  |_| |_____|_| \\_\\");
+
         this.marketPort = marketPort;
         this.brokerPort = brokerPort;
         this.fixMessagePreProcessor = FixPipelineConfig.buildChain();
@@ -52,11 +62,11 @@ public class RouterServer implements RouterServerActions {
     private Optional<Map<String, String>> processMessage(String message) {
         this.fixMessagePreProcessor.handle(message);
         Map<String, String> fixMessage = DeserializationContext.getCurrentMessage();
-        System.out.println("Parse after fixMessagePreProcessor :)");
+        LOGGER.info("Parse after fixMessagePreProcessor :)");
         for (Map.Entry<String, String> entry : fixMessage.entrySet()) {
             String key = entry.getKey();
             String value = entry.getValue();
-            System.out.println("key: " + key + " value: " + value);
+            LOGGER.info("key: " + key + " value: " + value);
         }
         return Optional.ofNullable(this.fixMessageProcessor.process(fixMessage)).map(msgType -> fixMessage);
     }
@@ -69,7 +79,7 @@ public class RouterServer implements RouterServerActions {
 
         int bytesRead = socketChannel.read(buffer);
         if (bytesRead == -1) {
-            System.out.println("Connection closed by the client : "
+            LOGGER.info("Connection closed by the client : "
                     + socketChannel.getRemoteAddress());
             socketChannel.close();
             key.cancel();
@@ -81,7 +91,7 @@ public class RouterServer implements RouterServerActions {
         buffer.get(data);
 
         String message = new String(data, StandardCharsets.US_ASCII);
-        System.out.println("\nReceived from : " + socketChannel.getRemoteAddress() + " : " + message);
+        LOGGER.info("\nReceived from : " + socketChannel.getRemoteAddress() + " : " + message);
 
         buffer.clear();
         Optional<Map<String, String>> fixMessage = processMessage(message);
@@ -93,15 +103,15 @@ public class RouterServer implements RouterServerActions {
 
             int localPort = ((InetSocketAddress) socketChannel.getLocalAddress()).getPort();
 
-            System.out.println("Remote port : " + localPort);
+            LOGGER.info("Remote port : " + localPort);
 
             switch (localPort) {
                 case 5000:
-                    System.out.println(String.format("market: %s is now identified by the router", id));
+                    LOGGER.info(String.format("market: %s is now identified by the router", id));
                     markets.put(id, socketChannel);
                     break;
                 case 5001:
-                    System.out.println(String.format("broker: %s is now identified by the router", id));
+                    LOGGER.info(String.format("broker: %s is now identified by the router", id));
                     brokers.put(id, socketChannel);
                     break;
             }
@@ -114,7 +124,7 @@ public class RouterServer implements RouterServerActions {
     @Override
     public void sendMessage(String targetCompID, String message) {
         try {
-            System.out.println("Sending to targetCompID: " + targetCompID + " | message: " + message);
+            LOGGER.info("Sending to targetCompID: " + targetCompID + " | message: " + message);
 
             SocketChannel sc = brokers.get(targetCompID);
             if (sc == null) {
@@ -122,7 +132,7 @@ public class RouterServer implements RouterServerActions {
             }
 
             if (sc == null) {
-                System.err.println("No SocketChannel found for targetCompID: " + targetCompID);
+                LOGGER.error("No SocketChannel found for targetCompID: " + targetCompID);
                 return;
             }
             ByteBuffer buffer = ByteBuffer.wrap(message.getBytes(StandardCharsets.US_ASCII));
@@ -130,7 +140,7 @@ public class RouterServer implements RouterServerActions {
                 sc.write(buffer);
             }
         } catch (IOException e) {
-            System.err.println("Error sending message to " + targetCompID + ": " + e.getMessage());
+            LOGGER.error("Error sending message to " + targetCompID + ": " + e.getMessage());
         }
     }
 
@@ -143,13 +153,13 @@ public class RouterServer implements RouterServerActions {
             socketChannel.configureBlocking(false);
             SelectionKey clientKey = socketChannel.register(selector, SelectionKey.OP_READ);
             clientKey.attach(new ConnectionContext());
-            System.out.println("Accepted connection from " + socketChannel.getRemoteAddress());
+            LOGGER.info("Accepted connection from " + socketChannel.getRemoteAddress());
             switch (serverChannel.socket().getLocalPort()) {
                 case 5000:
-                    System.out.println("Market is connected.");
+                    LOGGER.info("Market is connected.");
                     break;
                 case 5001:
-                    System.out.println("Broker is connected.");
+                    LOGGER.info("Broker is connected.");
                     break;
             }
         }
@@ -175,7 +185,7 @@ public class RouterServer implements RouterServerActions {
             marketSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
             brokerSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
-            System.out.println("Listen on market port: " + marketPort + " & broker port: " + brokerPort);
+            LOGGER.info("Listen on market port: " + marketPort + " & broker port: " + brokerPort);
 
             while (true) {
                 selector.select();
