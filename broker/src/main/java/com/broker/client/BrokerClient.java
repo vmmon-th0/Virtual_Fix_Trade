@@ -14,21 +14,22 @@ import java.util.Scanner;
 
 public class BrokerClient {
     private SocketChannel socketChannel;
-    private final String host;
     private Selector selector;
     private final int port;
-    private String currentMarketId;
+    private final String host;
+    private final String brokerChannelId;
 
-    public BrokerClient(String host, int port) {
+    public BrokerClient(String host, int port, String brokerChannelId) {
         this.host = host;
         this.port = port;
-        currentMarketId = "MARKET_SERVER";
+        this.brokerChannelId = brokerChannelId;
     }
 
     private void initChannel() throws IOException {
-        socketChannel = socketChannel.open();
+        socketChannel = SocketChannel.open();
         socketChannel.configureBlocking(false);
-        socketChannel.connect(new InetSocketAddress(host, port));
+        InetSocketAddress address = new InetSocketAddress(host, port);
+        socketChannel.connect(address);
     }
 
     private void readMessage(SelectionKey key) throws IOException {
@@ -59,42 +60,58 @@ public class BrokerClient {
             selector = Selector.open();
             socketChannel.register(selector, SelectionKey.OP_CONNECT);
 
-            while (true) {
+            while (socketChannel.isOpen()) {
                 selector.select();
 
                 Iterator<SelectionKey> keyIterator = selector.selectedKeys().iterator();
                 while (keyIterator.hasNext()) {
                     SelectionKey key = keyIterator.next();
-                    keyIterator.remove();
 
-                    if (key.isConnectable()) {
-                        System.out.println("key is connectable");
+                    if (!key.isValid()) {
+                        continue;
+                    }
+                    if ((key.readyOps() & SelectionKey.OP_CONNECT) != 0) {
                         connectChannel(key);
-                    } else if (key.isReadable()) {
+                    }
+                    if ((key.readyOps() & SelectionKey.OP_READ) != 0) {
                         readMessage(key);
                     }
+                    keyIterator.remove();
                 }
             }
 
+            System.out.println("Connection closed, see you soon in virtual FIX trading");
         } catch (IOException e) {
             e.printStackTrace();
+        } finally {
+            if (socketChannel.isOpen()) {
+                socketChannel.close();
+            }
+            if (selector.isOpen()) {
+                selector.close();
+            }
         }
     }
 
     private void connectChannel(SelectionKey key) throws IOException {
         SocketChannel sc = (SocketChannel) key.channel();
-        sc.configureBlocking(false);
 
-        if (sc.isConnectionPending()) {
-            sc.finishConnect();
+        if (sc.finishConnect()) {
             System.out.println("Connection established with the router server : "
                     + sc.getRemoteAddress());
-        }
 
-        sc.configureBlocking(false);
-        sc.register(selector, SelectionKey.OP_READ);
-        new Thread (new WriterTask(sc, this)).start();
+            String logonMessage = FixMessageFactory.createLogonIdentifier(brokerChannelId);
+            ByteBuffer buffer = ByteBuffer.wrap(logonMessage.getBytes(StandardCharsets.US_ASCII));
+            while (buffer.hasRemaining()) {
+                sc.write(buffer);
+            }
+            System.out.println("Sent market identifier successfully");
+
+            key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
+            new Thread(new WriterTask(sc, this)).start();
+        }
     }
+
 
     private static class WriterTask implements Runnable {
         private final SocketChannel sc;
@@ -114,7 +131,7 @@ public class BrokerClient {
                     if (line.equalsIgnoreCase("quit") || line.equalsIgnoreCase("exit")) {
                         System.out.println("disconnection...");
                         sc.close();
-                        // Todo: Exit the process properly
+                        this.brokerClient.selector.wakeup();
                         break;
                     } else if (line.equalsIgnoreCase("buy")) {
 
@@ -136,15 +153,9 @@ public class BrokerClient {
                     } else if (line.equalsIgnoreCase("sell")) {
 
                     } else if (line.equalsIgnoreCase("list-markets")) {
-                        String listMarkets = FixMessageFactory.createListMarkets();
-
-                        ByteBuffer buffer = ByteBuffer.wrap(listMarkets.getBytes());
-                        while(buffer.hasRemaining()){
-                            sc.write(buffer);
-                        }
                     } else {
                         System.out.println("line: " + line);
-                        ByteBuffer buffer = ByteBuffer.wrap(line.getBytes(StandardCharsets.UTF_8));
+                        ByteBuffer buffer = ByteBuffer.wrap(line.getBytes(StandardCharsets.US_ASCII));
                         while(buffer.hasRemaining()){
                             sc.write(buffer);
                         }

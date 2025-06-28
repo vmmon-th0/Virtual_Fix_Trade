@@ -2,6 +2,7 @@ package com.core.fix.factory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 
@@ -20,8 +21,8 @@ public class FixMessageFactory {
 
             int totalBytes = fields.entrySet().stream()
                     .skip(2)
-                    .mapToInt(e -> e.getKey().getBytes(StandardCharsets.UTF_8).length
-                            + e.getValue().getBytes(StandardCharsets.UTF_8).length)
+                    .mapToInt(e -> e.getKey().getBytes(StandardCharsets.US_ASCII).length
+                            + e.getValue().getBytes(StandardCharsets.US_ASCII).length)
                     .sum();
 
             totalBytes += (fields.size() - 2) * 2;
@@ -47,7 +48,7 @@ public class FixMessageFactory {
     public static FixMessage createFixStdHeader(String senderCompID, String targetCompID, String msgType) {
         FixMessage fixMessage = new FixMessage();
         fixMessage
-                .addField("8", "FIX.4.4") // BeginString
+                .addField("8", "FIXT.1.1") // BeginString
                 .addField("9", "0") // BodyLength
                 .addField("35", msgType) // MsgType, ici un "New Order - Single" (Type D)
                 .addField("49", senderCompID) // SenderCompID
@@ -77,14 +78,29 @@ public class FixMessageFactory {
     }
 
     public static String createLogonIdentifier(String identifier) {
-        FixMessage fixMessage = createFixStdHeader("", "", "UD1"); // User Defined type
+        FixMessage fixMessage = createFixStdHeader("", "", "UD1");
         fixMessage
                 .addField("58", identifier); // Text
         return fixMessage.build();
     }
 
-    public static String createListMarkets() {
-        FixMessage fixMessage = createFixStdHeader("", "", "UD2");
+    public static String createLogonIdentifierReport(String senderCompID, String targetCompID, String report) {
+        FixMessage fixMessage = createFixStdHeader("", "", "UD1R");
+        fixMessage
+                .addField("58", report);
+        return fixMessage.build();
+    }
+
+    public static String createListMarkets(String senderCompID, String targetCompID, List<String> markets) {
+        FixMessage fixMessage = createFixStdHeader(senderCompID, targetCompID, "UD2");
+
+        String rawMarketList = String.join(",", markets);
+        byte[] rawBytes = rawMarketList.getBytes(StandardCharsets.US_ASCII);
+
+        fixMessage
+                .addField("95", String.valueOf(rawBytes.length))
+                .addField("96", rawMarketList);
+
         return fixMessage.build();
     }
 

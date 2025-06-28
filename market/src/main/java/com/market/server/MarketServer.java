@@ -13,7 +13,7 @@ import java.util.Iterator;
 
 public class MarketServer {
 
-    private String marketChannelId;
+    private final String marketChannelId;
     private SocketChannel socketChannel;
     private final String host;
     private Selector selector;
@@ -26,31 +26,10 @@ public class MarketServer {
     }
 
     private void initChannel() throws IOException {
-        try {
-            socketChannel = SocketChannel.open();
-            socketChannel.configureBlocking(true); // while(!socketChannel.finishConnect()) alternative
-            InetSocketAddress address = new InetSocketAddress(host, port);
-            if (!socketChannel.connect(address)) {
-                throw new IOException("Failed to connect within the time limit");
-            }
-
-            String logonMessage = FixMessageFactory.createLogonIdentifier(marketChannelId);
-            ByteBuffer buffer = ByteBuffer.wrap(logonMessage.getBytes(StandardCharsets.UTF_8));
-
-            while (buffer.hasRemaining()) {
-                socketChannel.write(buffer);
-            }
-            socketChannel.configureBlocking(false);
-        } catch (IOException e) {
-            if (socketChannel != null) {
-                try {
-                    socketChannel.close();
-                } catch (IOException ex) {
-                    e.addSuppressed(ex);
-                }
-            }
-            throw e;
-        }
+        socketChannel = SocketChannel.open();
+        socketChannel.configureBlocking(false);
+        InetSocketAddress address = new InetSocketAddress(host, port);
+        socketChannel.connect(address);
     }
 
     private void readMessage(SelectionKey key) throws IOException {
@@ -79,45 +58,58 @@ public class MarketServer {
         try {
             initChannel();
             selector = Selector.open();
-
             socketChannel.register(selector, SelectionKey.OP_CONNECT);
 
-            while (true) {
+            while (socketChannel.isOpen()) {
                 selector.select();
 
                 Iterator<SelectionKey> keyIterator = selector.selectedKeys().iterator();
                 while (keyIterator.hasNext()) {
                     SelectionKey key = keyIterator.next();
-                    keyIterator.remove();
 
-                    if (key.isConnectable()) {
+                    if (!key.isValid()) {
+                        continue;
+                    }
+                    if ((key.readyOps() & SelectionKey.OP_CONNECT) != 0) {
                         connectChannel(key);
-                    } else if (key.isReadable()) {
+                    }
+                    if ((key.readyOps() & SelectionKey.OP_READ) != 0) {
                         readMessage(key);
                     }
+                    keyIterator.remove();
                 }
             }
 
         } catch (IOException e) {
-            if (selector != null) {
+            e.printStackTrace();
+        } finally {
+            if (socketChannel.isOpen()) {
+                socketChannel.close();
+            }
+            if (selector.isOpen()) {
                 selector.close();
             }
-            e.printStackTrace();
+
         }
     }
 
     private void connectChannel(SelectionKey key) throws IOException {
         SocketChannel sc = (SocketChannel) key.channel();
-        sc.configureBlocking(false);
 
-        if (sc.isConnectionPending()) {
-            sc.finishConnect();
+        System.out.println("Connecting to " + sc.getRemoteAddress());
+
+        if (sc.finishConnect()) {
             System.out.println("Connection established with the router server : "
                     + sc.getRemoteAddress());
         }
 
-        sc.configureBlocking(false);
-        sc.register(selector, SelectionKey.OP_READ);
+        String logonMessage = FixMessageFactory.createLogonIdentifier(marketChannelId);
+        ByteBuffer buffer = ByteBuffer.wrap(logonMessage.getBytes(StandardCharsets.US_ASCII));
+        while (buffer.hasRemaining()) {
+            sc.write(buffer);
+        }
+        System.out.println("Sent market identifier successfully");
+        key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
     }
 
 }

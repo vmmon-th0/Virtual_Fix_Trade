@@ -2,9 +2,11 @@ package com.router.server;
 
 import com.core.fix.config.FixPipelineConfig;
 import com.core.fix.context.DeserializationContext;
+import com.core.fix.factory.FixMessageFactory;
 import com.core.fix.processor.FixMessagePreProcessor;
 import com.router.context.ConnectionContext;
-import com.router.strategy.StrategyRegistry;
+import com.router.interfaces.RouterServerActions;
+import com.router.processor.FixMessageProcessor;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -16,36 +18,38 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class RouterServer {
-    private final int marketPort;
-    private final int brokerPort;
-
+public class RouterServer implements RouterServerActions {
     private ServerSocketChannel marketSocketChannel;
     private ServerSocketChannel brokerSocketChannel;
     private Selector selector;
 
-    private FixMessagePreProcessor fixMessagePreProcessor;
+    private final FixMessageProcessor fixMessageProcessor;
+    private final FixMessagePreProcessor fixMessagePreProcessor;
+
+    private final int marketPort;
+    private final int brokerPort;
+    private static final String routerId = "ROUTER";
+
+//    Todo: check thread use cases
+    Map<String, SocketChannel> markets = new ConcurrentHashMap<>();
+    Map<String, SocketChannel> brokers = new ConcurrentHashMap<>();
+
+    public Map<String, SocketChannel> getMarkets() {
+        return markets;
+    }
 
     public RouterServer(int marketPort, int brokerPort) {
         this.marketPort = marketPort;
         this.brokerPort = brokerPort;
         this.fixMessagePreProcessor = FixPipelineConfig.buildChain();
+        this.fixMessageProcessor = new FixMessageProcessor(this);
     }
 
-//    todo: optimize in order to search only marketSocketChannel connections
-
-    private void listMarkets() {
-        for (SelectionKey key : selector.keys()) {
-            Object attachment = key.attachment();
-            if (attachment instanceof ConnectionContext) {
-                System.out.println(((ConnectionContext) attachment).getId());
-            }
-        }
-    }
-
-    private void processMessage(String message) {
+    private Optional<Map<String, String>> processMessage(String message) {
         this.fixMessagePreProcessor.handle(message);
         Map<String, String> fixMessage = DeserializationContext.getCurrentMessage();
         System.out.println("Parse after fixMessagePreProcessor :)");
@@ -54,7 +58,7 @@ public class RouterServer {
             String value = entry.getValue();
             System.out.println("key: " + key + " value: " + value);
         }
-//        this.strategyProcessor.processor();
+        return Optional.ofNullable(this.fixMessageProcessor.process(fixMessage)).map(msgType -> fixMessage);
     }
 
     private void readMessage(SelectionKey key) throws IOException {
@@ -76,15 +80,60 @@ public class RouterServer {
         byte[] data = new byte[bytesRead];
         buffer.get(data);
 
-        String message = new String(data, StandardCharsets.UTF_8);
+        String message = new String(data, StandardCharsets.US_ASCII);
         System.out.println("\nReceived from : " + socketChannel.getRemoteAddress() + " : " + message);
 
-//        Todo: Optimize this part, another thread maybe for the execution depending on fixmessage
-//        Todo: Move this part, and implement Optional String return value if required.
-//        Todo: Add execution of the process in the main loop to seperate logic.
         buffer.clear();
-        processMessage(message);
+        Optional<Map<String, String>> fixMessage = processMessage(message);
+
+        if (fixMessage.isPresent()) {
+
+            String id = fixMessage.map(m -> m.get("58")).orElse(null);
+            connectionContext.setId(id);
+
+            int localPort = ((InetSocketAddress) socketChannel.getLocalAddress()).getPort();
+
+            System.out.println("Remote port : " + localPort);
+
+            switch (localPort) {
+                case 5000:
+                    System.out.println(String.format("market: %s is now identified by the router", id));
+                    markets.put(id, socketChannel);
+                    break;
+                case 5001:
+                    System.out.println(String.format("broker: %s is now identified by the router", id));
+                    brokers.put(id, socketChannel);
+                    break;
+            }
+
+            String report = FixMessageFactory.createLogonIdentifierReport(routerId, id, "Registered successfully");
+            this.sendMessage(id, report);
+        }
     }
+
+    @Override
+    public void sendMessage(String targetCompID, String message) {
+        try {
+            System.out.println("Sending to targetCompID: " + targetCompID + " | message: " + message);
+
+            SocketChannel sc = brokers.get(targetCompID);
+            if (sc == null) {
+                sc = markets.get(targetCompID);
+            }
+
+            if (sc == null) {
+                System.err.println("No SocketChannel found for targetCompID: " + targetCompID);
+                return;
+            }
+            ByteBuffer buffer = ByteBuffer.wrap(message.getBytes(StandardCharsets.US_ASCII));
+            while (buffer.hasRemaining()) {
+                sc.write(buffer);
+            }
+        } catch (IOException e) {
+            System.err.println("Error sending message to " + targetCompID + ": " + e.getMessage());
+        }
+    }
+
 
     private void acceptChannel(SelectionKey key) throws IOException {
         ServerSocketChannel serverChannel = (ServerSocketChannel) key.channel();
@@ -170,4 +219,5 @@ public class RouterServer {
             }
         }
     }
+
 }

@@ -9,7 +9,7 @@ public class Main {
                 "| '_ \\| '__/ _ \\| |/ / _ \\ '__|\n" +
                 "| |_) | | | (_) |   <  __/ |   \n" +
                 "|_.__/|_|  \\___/|_|\\_\\___|_|   ");
-        BrokerClient brokerClient = new BrokerClient("localhost", 5001);
+        BrokerClient brokerClient = new BrokerClient("localhost", 5001, "WOLFOFWALLSTREET");
         brokerClient.runEventLoop();
     }
 }
