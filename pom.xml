@@ -13,6 +13,7 @@
         <module>market</module>
         <module>router</module>
         <module>broker</module>
+        <module>transaction-db</module>
     </modules>
 
     <properties>

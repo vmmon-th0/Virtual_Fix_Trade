@@ -42,6 +42,7 @@ public class RouterServer implements RouterServerActions {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RouterServer.class);
 
+    @Override
     public Map<String, SocketChannel> getMarkets() {
         return markets;
     }

@@ -5,6 +5,5 @@ import java.util.Map;
 
 public interface RouterServerActions {
     void sendMessage(String targetCompID, String message);
-
     Map<String, SocketChannel> getMarkets();
 }

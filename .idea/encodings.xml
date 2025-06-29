@@ -11,5 +11,7 @@
     <file url="file://$PROJECT_DIR$/router/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/transaction-db/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/transaction-db/src/main/resources" charset="UTF-8" />
   </component>
 </project>
