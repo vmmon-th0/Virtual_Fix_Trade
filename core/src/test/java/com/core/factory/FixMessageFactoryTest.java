@@ -23,7 +23,7 @@ class FixMessageFactoryTest {
         FixMessageFactory.FixMessage fixMsg = FixMessageFactory.createFixStdHeader(senderCompID, targetCompID, "D");
         String builtMessage = fixMsg.build();
 
-        Assertions.assertTrue(builtMessage.contains("8=FIX.4.4"),
+        Assertions.assertTrue(builtMessage.contains("8=FIXT.1.1"),
                 "The BeginString (8=FIX.4.4) should be present in the message.");
         Assertions.assertTrue(builtMessage.contains("9="),
                 "The BodyLength (9=) field should be present in the message.");
